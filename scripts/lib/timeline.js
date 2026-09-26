@@ -1,77 +1,107 @@
-// Reine Logik (ohne Browser/ffmpeg): Sätze, Gesten, Untertitel. Wird getestet.
-import { TALK_GESTURES } from '../../render/gestures.js';
+// Reine Logik ohne Netzwerk/ffmpeg: Text, Wort-Zeiten, Schnitt-Segmente, Untertitel, Prompts. Wird getestet.
 
-export const FPS = 30;
-export const WALK_DURATION = 2.8;
-export const SPEECH_START = WALK_DURATION + 0.15;
-export const TAIL = 0.7;
+export const HOOK_SECONDS = 2.6;
 
-/** Stabiler Hash (FNV-1a) für reproduzierbare "Zufalls"-Entscheidungen. */
+/** Stabiler Hash (FNV-1a) für Dateinamen im Cache. */
 export function hash(str) {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i);
     h = Math.imul(h, 0x01000193);
   }
-  return h >>> 0;
+  return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-/** Alle gesprochenen Sätze eines Videos: Inhalt + immer gleiches Ende (Call-to-Action). */
+/** Alle gesprochenen Sätze: Inhalt + immer gleiches Ende (Call-to-Action). */
 export function spokenSentences(video, config) {
-  return [...video.lines, ...config.cta.map((c) => c.text)];
+  return [...video.lines, ...config.cta];
+}
+
+export const spokenText = (video, config) => spokenSentences(video, config).join(' ');
+
+/**
+ * Wort-Zeiten aus der Zeichen-Ausrichtung (Format von ElevenLabs "with-timestamps":
+ * characters[], character_start_times_seconds[], character_end_times_seconds[]).
+ */
+export function wordsFromAlignment(alignment) {
+  const { characters: ch, character_start_times_seconds: st, character_end_times_seconds: en } = alignment || {};
+  if (!ch?.length || ch.length !== st?.length || ch.length !== en?.length) throw new Error('Ungültige Zeitangaben der Stimme');
+  const words = [];
+  let cur = null;
+  for (let i = 0; i < ch.length; i++) {
+    if (/\s/.test(ch[i])) {
+      if (cur) words.push(cur);
+      cur = null;
+    } else if (!cur) {
+      cur = { text: ch[i], start: st[i], end: en[i] };
+    } else {
+      cur.text += ch[i];
+      cur.end = en[i];
+    }
+  }
+  if (cur) words.push(cur);
+  return words;
+}
+
+/** Ersatz-Zeiten, wenn keine echten vorliegen (Testmodus): ca. 15 Zeichen pro Sekunde. */
+export function estimateAlignment(text, charsPerSecond = 15) {
+  const characters = [...text];
+  const step = 1 / charsPerSecond;
+  return {
+    characters,
+    character_start_times_seconds: characters.map((_, i) => +(i * step).toFixed(4)),
+    character_end_times_seconds: characters.map((_, i) => +((i + 1) * step).toFixed(4)),
+  };
 }
 
 /**
- * Gesten pro Satz. Erster Satz: in die Kamera zeigen. CTA-Sätze: feste Gesten aus der Config.
- * Sonst reproduzierbar aus TALK_GESTURES gewählt, nie zweimal dieselbe hintereinander.
+ * Teilt das Video an Satzenden in Abschnitte von höchstens `maxSeconds`
+ * (Video-KIs erzeugen nur kurze Clips). Ein einzelner zu langer Satz bleibt ganz.
+ * Die Abschnitte schließen lückenlos aneinander an (Schnitt in der Mitte der Satzpause).
  */
-export function planGestures(video, config, timings) {
-  const ctaStart = video.lines.length;
-  const gestures = [];
-  let prev = null;
-  timings.forEach((t, i) => {
-    let name;
-    if (i >= ctaStart) name = config.cta[i - ctaStart].gesture;
-    else if (i === 0) name = 'point';
-    else {
-      const options = TALK_GESTURES.filter((g) => g !== prev);
-      name = options[hash(`${video.id}:${i}`) % options.length];
+export function splitSegments(words, maxSeconds) {
+  if (!words.length) throw new Error('Kein Text');
+  const sentenceEnds = words.map((w, i) => (/[.!?]["')\]]?$/.test(w.text) ? i : -1)).filter((i) => i >= 0);
+  if (sentenceEnds.at(-1) !== words.length - 1) sentenceEnds.push(words.length - 1);
+  const raw = [];
+  let first = 0;
+  let lastEnd = -1;
+  for (const endIdx of sentenceEnds) {
+    const segStart = first === 0 ? 0 : words[first].start;
+    if (words[endIdx].end - segStart > maxSeconds && lastEnd >= first) {
+      raw.push({ first, last: lastEnd });
+      first = lastEnd + 1;
     }
-    const start = SPEECH_START + t.start + 0.15;
-    const end = SPEECH_START + t.end - 0.1;
-    if (end - start >= 0.6) {
-      gestures.push({ start, end, name });
-      prev = name;
-    }
+    lastEnd = endIdx;
+  }
+  raw.push({ first, last: words.length - 1 });
+  return raw.map((s, i) => {
+    const start = i === 0 ? 0 : (words[raw[i - 1].last].end + words[s.first].start) / 2;
+    const end = i === raw.length - 1 ? words[s.last].end + 0.35 : (words[s.last].end + words[raw[i + 1].first].start) / 2;
+    return { ...s, start, end, text: words.slice(s.first, s.last + 1).map((w) => w.text).join(' ') };
   });
-  return gestures;
 }
 
-/** Untertitel in kurzen Häppchen (max. 3 Wörter / 16 Zeichen), Zeit proportional zur Wortlänge. */
-export function captionChunks(sentences, timings) {
+/** Untertitel-Häppchen: max. 3 Wörter / 16 Zeichen, neues Häppchen nach Satzzeichen. */
+export function captionChunks(words) {
   const chunks = [];
-  sentences.forEach((sentence, i) => {
-    const words = sentence.trim().split(/\s+/);
-    const weights = words.map((w) => w.length + 2);
-    const total = weights.reduce((a, b) => a + b, 0);
-    const { start, end } = timings[i];
-    const dur = end - start;
-    let t = start;
-    let group = [];
-    let groupStart = start;
-    words.forEach((word, k) => {
-      const wEnd = t + (dur * weights[k]) / total;
-      const text = [...group, word].join(' ');
-      if (group.length && (group.length >= 3 || text.length > 16)) {
-        chunks.push({ start: SPEECH_START + groupStart, end: SPEECH_START + t, text: group.join(' ') });
-        group = [];
-        groupStart = t;
-      }
-      group.push(word);
-      t = wEnd;
-    });
-    if (group.length) chunks.push({ start: SPEECH_START + groupStart, end: SPEECH_START + end, text: group.join(' ') });
-  });
+  let group = [];
+  const flush = () => {
+    if (!group.length) return;
+    chunks.push({ start: group[0].start, end: group.at(-1).end, text: group.map((w) => w.text).join(' ') });
+    group = [];
+  };
+  for (const w of words) {
+    const text = [...group, w].map((x) => x.text).join(' ');
+    if (group.length && (group.length >= 3 || text.length > 16)) flush();
+    group.push(w);
+    if (/[.!?,:;]$/.test(w.text)) flush();
+  }
+  flush();
+  // Kurze Pausen überbrücken, damit die Untertitel nicht flackern.
+  for (let i = 0; i < chunks.length - 1; i++) {
+    if (chunks[i + 1].start - chunks[i].end < 0.6) chunks[i].end = chunks[i + 1].start;
+  }
   return chunks;
 }
 
@@ -85,7 +115,7 @@ function assTime(s) {
 
 export const assEscape = (s) => String(s).replace(/\\/g, '\\\\').replace(/[{}]/g, '').replace(/\n/g, '\\N');
 
-/** Untertiteldatei (ASS) für 1080x1920: Serien-Label, Hook oben, Untertitel in der Mitte. */
+/** Untertiteldatei (ASS) für 1080x1920: Serien-Label, Hook oben, Untertitel unten-mittig. */
 export function buildAss({ video, chunks, total, config }) {
   const header = `[Script Info]
 ScriptType: v4.00+
@@ -104,10 +134,11 @@ Style: Small,Montserrat ExtraBold,38,&H00DDDDDD,&H00DDDDDD,&H00000000,&H00000000
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
-  const lines = [];
-  lines.push(`Dialogue: 0,${assTime(0)},${assTime(total)},Label,,0,0,0,,${assEscape(`${config.seriesLabel} · DAY ${video.day}`)}`);
-  lines.push(`Dialogue: 0,${assTime(0)},${assTime(SPEECH_START + 0.4)},Hook,,0,0,0,,{\\fad(120,200)}${assEscape(video.hook.toUpperCase())}`);
-  lines.push(`Dialogue: 0,${assTime(0.3)},${assTime(SPEECH_START + 0.4)},Small,,0,0,0,,{\\fad(120,200)}${assEscape(config.disclaimerShort)}`);
+  const lines = [
+    `Dialogue: 0,${assTime(0)},${assTime(total)},Label,,0,0,0,,${assEscape(`${config.seriesLabel} · DAY ${video.day}`)}`,
+    `Dialogue: 0,${assTime(0)},${assTime(HOOK_SECONDS)},Hook,,0,0,0,,{\\fad(0,200)}${assEscape(video.hook.toUpperCase())}`,
+    `Dialogue: 0,${assTime(0)},${assTime(HOOK_SECONDS)},Small,,0,0,0,,{\\fad(0,200)}${assEscape(config.disclaimerShort)}`,
+  ];
   for (const c of chunks) {
     lines.push(
       `Dialogue: 1,${assTime(c.start)},${assTime(c.end)},Caption,,0,0,0,,{\\pos(540,1240)\\fscx85\\fscy85\\t(0,90,\\fscx100\\fscy100)}${assEscape(c.text.toUpperCase())}`,
@@ -118,28 +149,26 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 /** Beschreibungstext für TikTok/Instagram. */
 export function buildCaption(video, config) {
-  return [video.caption, config.captionFooter, [...config.hashtags, ...(video.hashtags || [])].join(' ')].join('\n\n');
+  return [video.caption, config.captionFooter, config.hashtags.join(' ')].join('\n\n');
 }
 
-// Wörter, die die Stimme als Wort (nicht buchstabiert) sprechen soll.
-const SPOKEN_AS_WORD = new Set(['FOMO', 'FUD', 'HODL', 'ETH', 'OK']);
-const PRONUNCIATION = [
-  [/\bmemecoins\b/gi, 'meme coins'],
-  [/\bmemecoin\b/gi, 'meme coin'],
-  [/\bstablecoins\b/gi, 'stable coins'],
-  [/\bstablecoin\b/gi, 'stable coin'],
-  [/\bdegens\b/gi, 'dee jens'],
-  [/\bdegen\b/gi, 'dee jen'],
-  [/\bATH\b/g, 'all time high'],
-  [/\b24\/7\b/g, 'twenty four seven'],
-  [/\b(\d+)x\b/g, '$1 x'],
-  [/\bNFT\b/g, 'N F T'],
-  [/\bAI\b/g, 'eh eye'],
-];
+const STYLE =
+  'Same character as in the reference image, same face, hair and outfit (plain dark navy crewneck sweatshirt with no text or logo, thin gold chain, gold wristwatch, black cargo pants, white chunky sneakers). Early 2000s PlayStation 2 pre-rendered CGI cutscene style, stylized slightly plastic 3D look, not photorealistic, not anime.';
 
-/** Text für die Sprachausgabe: Aussprache-Korrekturen, Abkürzungen buchstabieren. */
-export function toSpeech(text) {
-  let s = text;
-  for (const [re, rep] of PRONUNCIATION) s = s.replace(re, rep);
-  return s.replace(/\b[A-Z]{2,5}\b/g, (w) => (SPOKEN_AS_WORD.has(w) ? w : w.split('').join(' ')));
+const POSE_IMAGE = {
+  walk: 'He walks toward the camera mid-stride, talking to the viewer, one hand gesturing confidently. Framed from the knees up.',
+  sit: 'He sits relaxed and confident, leaning slightly forward, talking to the viewer, one hand gesturing. Framed from the waist up.',
+};
+
+/** Prompt für das Startbild einer Umgebung/Haltung. */
+export function imagePrompt(scene, pose, config) {
+  if (!POSE_IMAGE[pose]) throw new Error(`Unbekannte Haltung: ${pose}`);
+  return `${STYLE} ${POSE_IMAGE[pose]} Location: ${scene.setting}. ${config.ai.prompts.background} Vertical 9:16 composition.`;
+}
+
+/** Prompt für einen Clip. Beim Laufen: erster Clip läuft auf die Kamera zu, danach steht er. */
+export function videoPrompt(pose, segmentIndex, config) {
+  const p = config.ai.prompts;
+  if (pose === 'sit') return p.sit;
+  return segmentIndex === 0 ? p.walk : p.stand;
 }

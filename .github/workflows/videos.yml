@@ -1,13 +1,20 @@
-name: Videos rendern
+name: Videos erzeugen
 
 on:
-  # Manuell starten: GitHub → Actions → "Videos rendern" → "Run workflow"
+  # GitHub → Actions → "Videos erzeugen" → "Run workflow"
   workflow_dispatch:
     inputs:
       days:
-        description: 'Welche Tage? z. B. "1,2,3" – leer = alle 55'
+        description: 'Welche Tage? z. B. "1" oder "1,2,3" – leer = alle 55'
         required: false
-        default: ''
+        default: '1'
+      mode:
+        description: 'Was erzeugen?'
+        type: choice
+        options:
+          - nur-startbilder
+          - videos
+        default: nur-startbilder
   push:
     branches: ['**']
   pull_request:
@@ -24,40 +31,45 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: npm ci
       - run: npm test
+      # Kompletter Probelauf ohne KI-Dienste (kostet nichts)
+      - run: npm run videos -- --dry-run --only 1
 
-  render:
+  generate:
+    if: github.event_name == 'workflow_dispatch'
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      - run: pip install -r requirements.txt
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - name: Videos rendern
-        # Bei Push/PR nur Tag 1 als Probelauf, sonst die gewählten Tage (oder alle).
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${DAYS}" ]; then
-            npm run render -- --only "${DAYS}"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            npm run render
-          else
-            npm run render -- --only 1
-          fi
-        env:
-          DAYS: ${{ inputs.days }}
-      - uses: actions/upload-artifact@v4
+      # Bereits bezahlte Bilder/Clips/Stimmen wiederverwenden
+      - uses: actions/cache@v4
         with:
-          name: videos
+          path: cache
+          key: ai-cache-${{ github.run_id }}
+          restore-keys: ai-cache-
+      - name: Erzeugen
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          DAYS: ${{ inputs.days }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          ARGS=()
+          if [ -n "$DAYS" ]; then ARGS+=(--only "$DAYS"); fi
+          if [ "$MODE" = "nur-startbilder" ]; then ARGS+=(--images-only); fi
+          npm run videos -- "${ARGS[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ergebnis
           path: output/
           retention-days: 30
