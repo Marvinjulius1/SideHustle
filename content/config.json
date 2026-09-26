@@ -20,7 +20,7 @@
   "ai": {
     "voice": {
       "provider": "elevenlabs",
-      "voiceId": "HIER_VOICE_ID_EINTRAGEN",
+      "voiceId": "MzkRtOF5ltMcSBJjCiG7",
       "model": "eleven_multilingual_v2",
       "settings": {
         "stability": 0.45,
