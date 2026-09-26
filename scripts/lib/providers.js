@@ -2,6 +2,7 @@
 // plus Test-Ersatz ("dry run"), der ohne Internet und ohne Kosten läuft.
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createFalClient } from '@fal-ai/client';
 import { estimateAlignment } from './timeline.js';
 import { ffmpeg } from './media.js';
 
@@ -13,10 +14,22 @@ function requireEnv(name, hint) {
   return v;
 }
 
-async function dataUri(file) {
+let falClient = null;
+
+/**
+ * Lädt eine Datei in den Speicher von fal.ai und gibt den Link zurück.
+ * (Die Video-KI akzeptiert keine eingebetteten Dateien, nur Links.)
+ */
+async function falUpload(file) {
   const type = MIME[path.extname(file).toLowerCase()];
   if (!type) throw new Error(`Unbekannter Dateityp: ${file}`);
-  return `data:${type};base64,${(await readFile(file)).toString('base64')}`;
+  falClient ??= createFalClient({ credentials: requireEnv('FAL_KEY', 'Als GitHub-Secret hinterlegen (siehe README).') });
+  try {
+    return await falClient.storage.upload(new Blob([await readFile(file)], { type }));
+  } catch (e) {
+    const status = e?.status ? `HTTP ${e.status} – ` : '';
+    throw new Error(`fal.ai Upload (${path.basename(file)}): ${status}${e?.message || e}`);
+  }
 }
 
 /** Ersetzt {image}/{images}/{audio}/{prompt} in einer beliebig verschachtelten Vorlage ({images} = Liste). */
@@ -97,14 +110,14 @@ async function falRun(model, input) {
 }
 
 async function falImage({ prompt, referenceFiles, outFile, cfg }) {
-  const images = await Promise.all(referenceFiles.map(dataUri));
+  const images = await Promise.all(referenceFiles.map(falUpload));
   const input = fillTemplate(cfg.input, { prompt, images, image: images[0] });
   const out = await falRun(cfg.model, input);
   await download(getPath(out, cfg.outputPath), outFile);
 }
 
 async function falVideo({ prompt, imageFile, audioFile, outFile, cfg }) {
-  const input = fillTemplate(cfg.input, { prompt, image: await dataUri(imageFile), audio: await dataUri(audioFile) });
+  const input = fillTemplate(cfg.input, { prompt, image: await falUpload(imageFile), audio: await falUpload(audioFile) });
   const out = await falRun(cfg.model, input);
   await download(getPath(out, cfg.outputPath), outFile);
 }
