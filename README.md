@@ -5,18 +5,22 @@ Eine Figur im Stil einer PS2-Zwischensequenz spricht direkt in die Kamera – ma
 mal sitzt sie. Jedes Video spielt in einer anderen Umgebung; sein Penthouse und sein Trading-Raum kehren
 regelmäßig wieder. Am Ende sagt er immer denselben Call-to-Action (App-Link in der Bio).
 
+**Die Videos enthalten keine Schrift** – keine Untertitel, kein Label, kein Hook. Nur Bild und Stimme.
+
 ## Ablauf pro Video
 
-1. **Stimme** – ElevenLabs liest das Skript (inkl. exakter Wort-Zeiten für die Untertitel)
+1. **Stimme** – ElevenLabs liest das Skript (inkl. Wort-Zeiten, damit an Satzenden geschnitten wird)
 2. **Startbild** – fal.ai erzeugt aus dem Charakterbild die Figur in der jeweiligen Umgebung (einmal pro Umgebung)
 3. **Clips** – fal.ai animiert das Startbild passend zur Stimme (Lippen, Gesten, Laufen) in Abschnitten von max. 12 s
-4. **Schnitt** – ffmpeg setzt alles zusammen, mit Jump-Cuts, Untertiteln, Serien-Label und Hook
+4. **Schnitt** – ffmpeg setzt alles zusammen, mit leichten Zoom-Schnitten zwischen den Clips
 
 ## Einrichtung (einmalig)
 
-1. **Charakterbild** als `assets/character.jpg` ablegen (das Porträt aus Canva).
+1. **Charakterbilder** liegen in `assets/` (Porträt = Gesicht, Ganzkörper = Outfit, Laufbild = Penthouse-Startbild).
 2. **Konten anlegen:** [ElevenLabs](https://elevenlabs.io) und [fal.ai](https://fal.ai), jeweils API-Schlüssel erstellen.
 3. **Stimme wählen:** In ElevenLabs eine Stimme aussuchen, die Voice-ID in `content/config.json` bei `ai.voice.voiceId` eintragen.
+   Stimmen aus der Stimmen-Bibliothek brauchen per API mindestens den „Creator“-Tarif; Standardstimmen gehen kostenlos.
+   Der API-Schlüssel braucht die Berechtigung „Text to Speech“.
 4. **Schlüssel als GitHub-Secrets** hinterlegen (Repo → Settings → Secrets and variables → Actions):
    `ELEVENLABS_API_KEY` und `FAL_KEY`.
 
@@ -27,6 +31,7 @@ GitHub → *Actions* → *Videos erzeugen* → *Run workflow*
 | Schritt | Tage | Modus | Zweck |
 |---|---|---|---|
 | 1 | `1,2,3` | `nur-startbilder` | Look prüfen (günstig) |
+| – | `1` | `vorschau` | kostenlos: echte Stimme + Standbild (ohne Bewegung) |
 | 2 | `1` | `videos` | erstes komplettes Video prüfen |
 | 3 | leer | `videos` | alle 55 |
 

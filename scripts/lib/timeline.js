@@ -1,6 +1,4 @@
-// Reine Logik ohne Netzwerk/ffmpeg: Text, Wort-Zeiten, Schnitt-Segmente, Untertitel, Prompts. Wird getestet.
-
-export const HOOK_SECONDS = 2.6;
+// Reine Logik ohne Netzwerk/ffmpeg: Text, Wort-Zeiten, Schnitt-Segmente, Prompts. Wird getestet.
 
 /** Stabiler Hash (FNV-1a) für Dateinamen im Cache. */
 export function hash(str) {
@@ -80,71 +78,6 @@ export function splitSegments(words, maxSeconds) {
     const end = i === raw.length - 1 ? words[s.last].end + 0.35 : (words[s.last].end + words[raw[i + 1].first].start) / 2;
     return { ...s, start, end, text: words.slice(s.first, s.last + 1).map((w) => w.text).join(' ') };
   });
-}
-
-/** Untertitel-Häppchen: max. 3 Wörter / 16 Zeichen, neues Häppchen nach Satzzeichen. */
-export function captionChunks(words) {
-  const chunks = [];
-  let group = [];
-  const flush = () => {
-    if (!group.length) return;
-    chunks.push({ start: group[0].start, end: group.at(-1).end, text: group.map((w) => w.text).join(' ') });
-    group = [];
-  };
-  for (const w of words) {
-    const text = [...group, w].map((x) => x.text).join(' ');
-    if (group.length && (group.length >= 3 || text.length > 16)) flush();
-    group.push(w);
-    if (/[.!?,:;]$/.test(w.text)) flush();
-  }
-  flush();
-  // Kurze Pausen überbrücken, damit die Untertitel nicht flackern.
-  for (let i = 0; i < chunks.length - 1; i++) {
-    if (chunks[i + 1].start - chunks[i].end < 0.6) chunks[i].end = chunks[i + 1].start;
-  }
-  return chunks;
-}
-
-function assTime(s) {
-  const cs = Math.max(0, Math.round(s * 100));
-  const h = Math.floor(cs / 360000);
-  const m = Math.floor((cs % 360000) / 6000);
-  const sec = Math.floor((cs % 6000) / 100);
-  return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}.${String(cs % 100).padStart(2, '0')}`;
-}
-
-export const assEscape = (s) => String(s).replace(/\\/g, '\\\\').replace(/[{}]/g, '').replace(/\n/g, '\\N');
-
-/** Untertiteldatei (ASS) für 1080x1920: Serien-Label, Hook oben, Untertitel unten-mittig. */
-export function buildAss({ video, chunks, total, config }) {
-  const header = `[Script Info]
-ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
-WrapStyle: 0
-ScaledBorderAndShadow: yes
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,Montserrat Black,96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,7,0,5,80,80,0,1
-Style: Hook,Montserrat Black,72,&H0000E1FF,&H0000E1FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,7,0,8,90,90,300,1
-Style: Label,Montserrat ExtraBold,40,&H00FFD08A,&H00FFD08A,&H00000000,&H00000000,0,0,0,0,100,100,2,0,1,4,0,8,90,90,190,1
-Style: Small,Montserrat ExtraBold,38,&H00DDDDDD,&H00DDDDDD,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,4,0,8,90,90,1420,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-`;
-  const lines = [
-    `Dialogue: 0,${assTime(0)},${assTime(total)},Label,,0,0,0,,${assEscape(`${config.seriesLabel} · DAY ${video.day}`)}`,
-    `Dialogue: 0,${assTime(0)},${assTime(HOOK_SECONDS)},Hook,,0,0,0,,{\\fad(0,200)}${assEscape(video.hook.toUpperCase())}`,
-    `Dialogue: 0,${assTime(0)},${assTime(HOOK_SECONDS)},Small,,0,0,0,,{\\fad(0,200)}${assEscape(config.disclaimerShort)}`,
-  ];
-  for (const c of chunks) {
-    lines.push(
-      `Dialogue: 1,${assTime(c.start)},${assTime(c.end)},Caption,,0,0,0,,{\\pos(540,1240)\\fscx85\\fscy85\\t(0,90,\\fscx100\\fscy100)}${assEscape(c.text.toUpperCase())}`,
-    );
-  }
-  return header + lines.join('\n') + '\n';
 }
 
 /** Beschreibungstext für TikTok/Instagram. */

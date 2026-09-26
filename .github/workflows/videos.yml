@@ -14,7 +14,12 @@ on:
         options:
           - nur-startbilder
           - videos
+          - vorschau
         default: nur-startbilder
+      voice_id:
+        description: 'Andere ElevenLabs-Stimme nur für diesen Lauf (leer = Stimme aus config.json)'
+        required: false
+        default: ''
   push:
     branches: ['**']
   pull_request:
@@ -62,10 +67,12 @@ jobs:
           FAL_KEY: ${{ secrets.FAL_KEY }}
           DAYS: ${{ inputs.days }}
           MODE: ${{ inputs.mode }}
+          VOICE_ID: ${{ inputs.voice_id }}
         run: |
           ARGS=()
           if [ -n "$DAYS" ]; then ARGS+=(--only "$DAYS"); fi
           if [ "$MODE" = "nur-startbilder" ]; then ARGS+=(--images-only); fi
+          if [ "$MODE" = "vorschau" ]; then ARGS+=(--preview); fi
           npm run videos -- "${ARGS[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
