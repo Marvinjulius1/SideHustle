@@ -34,9 +34,7 @@
       "model": "fal-ai/nano-banana/edit",
       "input": {
         "prompt": "{prompt}",
-        "image_urls": [
-          "{image}"
-        ]
+        "image_urls": "{images}"
       },
       "outputPath": "images.0.url"
     },
@@ -52,7 +50,13 @@
       "maxSegmentSeconds": 12
     },
     "images": {
-      "reference": "assets/character.jpg"
+      "references": [
+        "assets/character.jpg",
+        "assets/character-full.jpg"
+      ],
+      "fixed": {
+        "penthouse-walk": "assets/penthouse-walk.jpg"
+      }
     },
     "prompts": {
       "background": "Background softly blurred with shallow depth of field and gentle bokeh, the character in sharp focus.",

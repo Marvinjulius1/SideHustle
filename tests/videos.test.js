@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { VIDEOS } from '../content/videos.js';
 import { SCENES } from '../content/scenes.js';
 import { assignScenes } from '../scripts/lib/plan.js';
@@ -167,10 +167,19 @@ test('ASS-Datei: Label, Hook, Escaping', () => {
 test('Vorlagen für KI-Anfragen werden korrekt befüllt', () => {
   const filled = fillTemplate(config.ai.video.input, { image: 'I', audio: 'A', prompt: 'P' });
   assert.deepEqual(Object.values(filled).sort(), ['A', 'I', 'P']);
-  const img = fillTemplate(config.ai.image.input, { image: 'I', prompt: 'P' });
+  const img = fillTemplate(config.ai.image.input, { image: 'I', images: ['I1', 'I2'], prompt: 'P' });
+  assert.ok(JSON.stringify(img).includes('"I1","I2"'), 'Liste der Vorlagebilder fehlt');
   assert.ok(!/\{(image|prompt|audio)\}/.test(JSON.stringify(img)), 'Platzhalter nicht ersetzt');
   assert.throws(() => fillTemplate({ a: '{missing}' }, {}), /Platzhalter/);
   assert.equal(fillTemplate('text {image} bleibt', { image: 'x' }), 'text {image} bleibt');
+});
+
+test('Vorlagebilder und feste Startbilder existieren', () => {
+  const files = [...config.ai.images.references, ...Object.values(config.ai.images.fixed || {})];
+  assert.ok(config.ai.images.references.length >= 1);
+  for (const f of files) assert.ok(existsSync(new URL(`../${f}`, import.meta.url)), f);
+  const ids = new Set(SCENES.flatMap((s) => s.poses.map((p) => `${s.id}-${p}`)));
+  for (const k of Object.keys(config.ai.images.fixed || {})) assert.ok(ids.has(k), `unbekannte Szene: ${k}`);
 });
 
 test('Ergebnisfelder werden gefunden oder klar gemeldet', () => {

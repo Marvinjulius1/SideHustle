@@ -54,19 +54,28 @@ const providers = makeProviders({ dryRun, config, fontFile });
 const exists = (f) => stat(f).then(() => true, () => false);
 const fileHash = async (f) => hash((await readFile(f)).toString('base64'));
 
-const referenceFile = path.join(root, config.ai.images.reference);
-if (!dryRun && !(await exists(referenceFile))) {
-  throw new Error(`Charakterbild fehlt: ${config.ai.images.reference}. Bitte das Porträt aus Canva dort ablegen.`);
+const referenceFiles = config.ai.images.references.map((f) => path.join(root, f));
+for (const [i, f] of referenceFiles.entries()) {
+  if (!(await exists(f))) throw new Error(`Charakterbild fehlt: ${config.ai.images.references[i]}`);
 }
-const refHash = (await exists(referenceFile)) ? await fileHash(referenceFile) : 'none';
+const refHash = hash((await Promise.all(referenceFiles.map(fileHash))).join());
+const fixedImages = config.ai.images.fixed || {};
 
 /** Startbild pro Umgebung + Haltung (einmal erzeugen, dann wiederverwenden). */
 async function sceneImage(scene, pose) {
-  const prompt = imagePrompt(scene, pose, config);
-  const file = path.join(cacheDir, `scene-${scene.id}-${pose}-${hash(prompt + config.ai.image.model + refHash)}.jpg`);
-  if (!(await exists(file))) {
-    console.log(`  Startbild: ${scene.id} (${pose}) …`);
-    await providers.image({ prompt, referenceFile, outFile: file, label: `${scene.id} / ${pose}` });
+  const fixed = fixedImages[`${scene.id}-${pose}`];
+  let file;
+  if (fixed) {
+    // Fest vorgegebenes Startbild (z. B. direkt aus Canva)
+    file = path.join(root, fixed);
+    if (!(await exists(file))) throw new Error(`Startbild fehlt: ${fixed}`);
+  } else {
+    const prompt = imagePrompt(scene, pose, config);
+    file = path.join(cacheDir, `scene-${scene.id}-${pose}-${hash(prompt + config.ai.image.model + JSON.stringify(config.ai.image.input) + refHash)}.jpg`);
+    if (!(await exists(file))) {
+      console.log(`  Startbild: ${scene.id} (${pose}) …`);
+      await providers.image({ prompt, referenceFiles, outFile: file, label: `${scene.id} / ${pose}` });
+    }
   }
   await mkdir(path.join(outDir, 'scenes'), { recursive: true });
   await copyFile(file, path.join(outDir, 'scenes', `${scene.id}-${pose}.jpg`));

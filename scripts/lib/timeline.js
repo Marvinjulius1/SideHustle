@@ -153,7 +153,7 @@ export function buildCaption(video, config) {
 }
 
 const STYLE =
-  'Same character as in the reference image, same face, hair and outfit (plain dark navy crewneck sweatshirt with no text or logo, thin gold chain, gold wristwatch, black cargo pants, white chunky sneakers). Early 2000s PlayStation 2 pre-rendered CGI cutscene style, stylized slightly plastic 3D look, not photorealistic, not anime.';
+  'Same character as in the reference images (face from the first, full outfit from the second), same face, hair and outfit (plain dark navy crewneck sweatshirt with no text or logo, thin gold chain, gold wristwatch, black cargo pants, white chunky sneakers). Early 2000s PlayStation 2 pre-rendered CGI cutscene style, stylized slightly plastic 3D look, not photorealistic, not anime.';
 
 const POSE_IMAGE = {
   walk: 'He walks toward the camera mid-stride, talking to the viewer, one hand gesturing confidently. Framed from the knees up.',

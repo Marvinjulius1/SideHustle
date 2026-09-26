@@ -19,7 +19,7 @@ async function dataUri(file) {
   return `data:${type};base64,${(await readFile(file)).toString('base64')}`;
 }
 
-/** Ersetzt {image}/{audio}/{prompt} in einer beliebig verschachtelten Vorlage. */
+/** Ersetzt {image}/{images}/{audio}/{prompt} in einer beliebig verschachtelten Vorlage ({images} = Liste). */
 export function fillTemplate(template, values) {
   if (typeof template === 'string') {
     const m = template.match(/^\{(\w+)\}$/);
@@ -96,8 +96,9 @@ async function falRun(model, input) {
   return fetchJson(responseUrl, { headers }, `fal.ai Ergebnis (${model})`);
 }
 
-async function falImage({ prompt, referenceFile, outFile, cfg }) {
-  const input = fillTemplate(cfg.input, { prompt, image: await dataUri(referenceFile) });
+async function falImage({ prompt, referenceFiles, outFile, cfg }) {
+  const images = await Promise.all(referenceFiles.map(dataUri));
+  const input = fillTemplate(cfg.input, { prompt, images, image: images[0] });
   const out = await falRun(cfg.model, input);
   await download(getPath(out, cfg.outputPath), outFile);
 }
