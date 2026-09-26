@@ -1,10 +1,12 @@
-// Erzeugt die Videos: Stimme → Startbild je Umgebung → KI-Clips → Schnitt + Untertitel.
+// Erzeugt die Videos: Stimme → Startbild je Umgebung → KI-Clips → Schnitt.
 //
 //   npm run videos -- --only 1,2 --images-only   nur Startbilder (günstig, zum Prüfen des Looks)
 //   npm run videos -- --only 1                   ein komplettes Video
 //   npm run videos                               alle 55
 //   npm run videos -- --dry-run                  Testlauf ohne Internet und ohne Kosten
 //   npm run videos -- --preview --only 1         Vorschau: echte Stimme, Standbild statt Video-KI
+//
+// Die Videos enthalten absichtlich keine Schrift (keine Untertitel, kein Label, kein Hook).
 //
 // Bereits erzeugte (bezahlte) Teile liegen in cache/ und werden wiederverwendet.
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -17,7 +19,7 @@ import { assignScenes } from './lib/plan.js';
 import { makeProviders } from './lib/providers.js';
 import { assemble, cutAudio, normalizeClip } from './lib/media.js';
 import {
-  buildAss, buildCaption, captionChunks, hash, imagePrompt, splitSegments, spokenText, videoPrompt, wordsFromAlignment,
+  buildCaption, hash, imagePrompt, splitSegments, spokenText, videoPrompt, wordsFromAlignment,
 } from './lib/timeline.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -47,14 +49,7 @@ const cacheDir = path.resolve(root, args.cache, dryRun ? 'dry-run' : preview ? '
 await mkdir(outDir, { recursive: true });
 await mkdir(cacheDir, { recursive: true });
 
-// Schriften für die Untertitel in einen Ordner legen
-const fontsDir = await mkdtemp(path.join(tmpdir(), 'fonts-'));
-const fontPkg = path.join(root, 'node_modules/@expo-google-fonts/montserrat');
-for (const f of ['900Black/Montserrat_900Black.ttf', '800ExtraBold/Montserrat_800ExtraBold.ttf']) {
-  await copyFile(path.join(fontPkg, f), path.join(fontsDir, path.basename(f)));
-}
-const fontFile = path.join(fontsDir, 'Montserrat_900Black.ttf');
-const providers = makeProviders({ dryRun, preview, config, fontFile });
+const providers = makeProviders({ dryRun, preview, config });
 
 const exists = (f) => stat(f).then(() => true, () => false);
 const fileHash = async (f) => hash((await readFile(f)).toString('base64'));
@@ -136,9 +131,8 @@ async function makeVideo({ video, scene, pose }) {
       await normalizeClip(raw, seg.end - seg.start, i % 2 ? 1.12 : 1, norm);
       clips.push(norm);
     }
-    const assFile = path.join(work, 'subs.ass');
-    await writeFile(assFile, buildAss({ video, chunks: captionChunks(words), total, config }));
-    await assemble({ clips, audio: audioFile, assFile, fontsDir, total, out: path.join(outDir, `${slug}.mp4`) });
+    // Bewusst ohne Schrift im Bild: kein Label, kein Hook, keine Untertitel.
+    await assemble({ clips, audio: audioFile, total, out: path.join(outDir, `${slug}.mp4`) });
     await writeFile(path.join(outDir, `${slug}.txt`), buildCaption(video, config) + '\n');
     console.log(`  ✓ ${slug}.mp4 (${total.toFixed(1)} s, ${segments.length} Clips)`);
   } finally {
@@ -147,20 +141,16 @@ async function makeVideo({ video, scene, pose }) {
 }
 
 const failed = [];
-try {
-  for (const job of jobs) {
-    try {
-      await makeVideo(job);
-    } catch (e) {
-      console.error(`✗ Tag ${job.day}: ${e.message}`);
-      failed.push(job.day);
-      // Fehlende Schlüssel/Einstellungen, ungültiger Schlüssel oder leeres Guthaben
-      // betreffen alle Videos → sofort abbrechen
-      if (/fehlt|HTTP 40[123]\b/.test(e.message)) break;
-    }
+for (const job of jobs) {
+  try {
+    await makeVideo(job);
+  } catch (e) {
+    console.error(`✗ Tag ${job.day}: ${e.message}`);
+    failed.push(job.day);
+    // Fehlende Einstellungen oder Ablehnungen der KI-Dienste (HTTP 4xx: Schlüssel, Guthaben,
+    // Tarif, falsche Eingabefelder) betreffen alle Videos → sofort abbrechen statt 55x scheitern
+    if (/fehlt|HTTP 4\d\d\b/.test(e.message)) break;
   }
-} finally {
-  await rm(fontsDir, { recursive: true, force: true });
 }
 if (failed.length) {
   console.error(`\nFehlgeschlagen: Tag ${failed.join(', ')}`);

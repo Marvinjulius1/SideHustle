@@ -6,8 +6,7 @@ import { SCENES } from '../content/scenes.js';
 import { assignScenes } from '../scripts/lib/plan.js';
 import { fillTemplate, getPath } from '../scripts/lib/providers.js';
 import {
-  assEscape, buildAss, buildCaption, captionChunks, estimateAlignment, imagePrompt, splitSegments,
-  spokenSentences, spokenText, videoPrompt, wordsFromAlignment,
+  buildCaption, estimateAlignment, imagePrompt, splitSegments, spokenSentences, spokenText, videoPrompt, wordsFromAlignment,
 } from '../scripts/lib/timeline.js';
 
 const config = JSON.parse(readFileSync(new URL('../content/config.json', import.meta.url), 'utf8'));
@@ -110,7 +109,7 @@ test('Prompts enthalten Stil, Haltung und Ort', () => {
   assert.match(config.ai.prompts.walk, /talking/);
 });
 
-// ---------------------------------------------------------------- Zeiten, Schnitt, Untertitel
+// ---------------------------------------------------------------- Zeiten und Schnitt
 
 const sample = 'Hello there, trader. This is sentence two. And here comes the third one!';
 
@@ -138,28 +137,6 @@ test('Segmente: an Satzgrenzen, lückenlos, max. Länge', () => {
       assert.ok(s.end - s.start <= max + 0.5 || singleSentence, `Tag ${v.day}: ${(s.end - s.start).toFixed(1)} s`);
     }
   }
-});
-
-test('Untertitel: vollständiger Text, max. 3 Wörter, zeitlich geordnet', () => {
-  const w = wordsFromAlignment(estimateAlignment(sample));
-  const chunks = captionChunks(w);
-  assert.equal(chunks.map((c) => c.text).join(' '), sample);
-  for (const c of chunks) {
-    assert.ok(c.text.split(' ').length <= 3);
-    assert.ok(c.end > c.start);
-  }
-  for (let i = 1; i < chunks.length; i++) assert.ok(chunks[i].start >= chunks[i - 1].end - 1e-9);
-  assert.equal(chunks[0].text, 'Hello there,');
-});
-
-test('ASS-Datei: Label, Hook, Escaping', () => {
-  const v = VIDEOS[6];
-  const ass = buildAss({ video: v, chunks: [{ start: 3, end: 4, text: 'hi {x}' }], total: 30, config });
-  assert.match(ass, /PlayResX: 1080/);
-  assert.match(ass, /WINTER ARC · DAY 7/);
-  assert.ok(ass.includes(v.hook.toUpperCase()));
-  assert.ok(ass.includes('HI X'));
-  assert.equal(assEscape('a\\b{c}'), 'a\\\\bc');
 });
 
 // ---------------------------------------------------------------- KI-Anbindung (ohne Netzwerk)

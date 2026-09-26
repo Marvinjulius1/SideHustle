@@ -118,16 +118,13 @@ async function fakeSpeech({ text, audioFile }) {
   return alignment;
 }
 
-async function fakeImage({ label, outFile, fontFile }) {
-  const text = label.replace(/[':\\]/g, ' ');
-  await ffmpeg(['-f', 'lavfi', '-i', 'gradients=s=1080x1920:c0=0x1d2a4a:c1=0x0b1020:duration=1', '-frames:v', '1',
-    '-vf', `drawtext=fontfile=${fontFile}:text='${text}':fontcolor=white:fontsize=56:x=(w-text_w)/2:y=h*0.45`, outFile]);
+async function fakeImage({ outFile }) {
+  await ffmpeg(['-f', 'lavfi', '-i', 'gradients=s=1080x1920:c0=0x1d2a4a:c1=0x0b1020:duration=1', '-frames:v', '1', outFile]);
 }
 
-async function fakeVideo({ imageFile, audioFile, outFile, label, fontFile }) {
-  const text = label.replace(/[':\\]/g, ' ');
+async function fakeVideo({ imageFile, audioFile, outFile }) {
   await ffmpeg(['-loop', '1', '-i', imageFile, '-i', audioFile,
-    '-vf', `scale=720:1280,zoompan=z='min(zoom+0.0008,1.2)':d=1:s=720x1280:fps=25,drawtext=fontfile=${fontFile}:text='${text}':fontcolor=yellow:fontsize=40:x=(w-text_w)/2:y=h*0.55`,
+    '-vf', "scale=720:1280,zoompan=z='min(zoom+0.0008,1.2)':d=1:s=720x1280:fps=25",
     '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outFile]);
 }
 
@@ -138,7 +135,7 @@ async function stillVideo({ imageFile, audioFile, outFile }) {
     '-shortest', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outFile]);
 }
 
-export function makeProviders({ dryRun, preview, config, fontFile }) {
+export function makeProviders({ dryRun, preview, config }) {
   if (preview) {
     return {
       speech: (a) => elevenLabsSpeech({ ...a, voice: config.ai.voice }),
@@ -151,8 +148,8 @@ export function makeProviders({ dryRun, preview, config, fontFile }) {
   if (dryRun) {
     return {
       speech: (a) => fakeSpeech(a),
-      image: (a) => fakeImage({ ...a, fontFile }),
-      video: (a) => fakeVideo({ ...a, fontFile }),
+      image: (a) => fakeImage(a),
+      video: (a) => fakeVideo(a),
     };
   }
   return {

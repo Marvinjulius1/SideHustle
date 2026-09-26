@@ -1,4 +1,4 @@
-// ffmpeg-Hilfen: Clips vereinheitlichen, zusammensetzen, Untertitel einbrennen.
+// ffmpeg-Hilfen: Clips vereinheitlichen und zusammensetzen.
 import { spawn } from 'node:child_process';
 
 export function ffmpeg(args) {
@@ -48,15 +48,15 @@ export function normalizeClip(src, duration, zoom, out) {
   return ffmpeg(['-i', src, '-an', '-vf', vf, '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', out]);
 }
 
-/** Clips aneinanderhängen, Stimme drunterlegen, Untertitel einbrennen. */
-export function assemble({ clips, audio, assFile, fontsDir, total, out }) {
+/** Clips aneinanderhängen und die Stimme drunterlegen (ohne Schrift im Bild). */
+export function assemble({ clips, audio, total, out }) {
   const inputs = clips.flatMap((c) => ['-i', c]);
   const concat = clips.map((_, i) => `[${i}:v]`).join('') + `concat=n=${clips.length}:v=1:a=0[cat]`;
   const a = clips.length;
   return ffmpeg([
     ...inputs, '-i', audio,
-    '-filter_complex', `${concat};[cat]ass=${assFile}:fontsdir=${fontsDir}[v];[${a}:a]apad,loudnorm=I=-14:TP=-1.5[a]`,
-    '-map', '[v]', '-map', '[a]', '-t', total.toFixed(3),
+    '-filter_complex', `${concat};[${a}:a]apad,loudnorm=I=-14:TP=-1.5[a]`,
+    '-map', '[cat]', '-map', '[a]', '-t', total.toFixed(3),
     '-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-pix_fmt', 'yuv420p', '-r', '30',
     '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-movflags', '+faststart', out,
   ]);
