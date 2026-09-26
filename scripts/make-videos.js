@@ -149,8 +149,9 @@ try {
     } catch (e) {
       console.error(`✗ Tag ${job.day}: ${e.message}`);
       failed.push(job.day);
-      // Fehlende Schlüssel/Einstellungen betreffen alle Videos → sofort abbrechen
-      if (/fehlt/.test(e.message)) break;
+      // Fehlende Schlüssel/Einstellungen, ungültiger Schlüssel oder leeres Guthaben
+      // betreffen alle Videos → sofort abbrechen
+      if (/fehlt|HTTP 40[123]\b/.test(e.message)) break;
     }
   }
 } finally {
