@@ -22,6 +22,8 @@ import {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const config = JSON.parse(await readFile(path.join(root, 'content/config.json'), 'utf8'));
+// Stimme für einen einzelnen Lauf überschreiben (z. B. kostenlose Standardstimme zum Testen)
+if (process.env.VOICE_ID) config.ai.voice.voiceId = process.env.VOICE_ID;
 const { values: args } = parseArgs({
   options: {
     only: { type: 'string' },

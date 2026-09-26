@@ -16,6 +16,10 @@ on:
           - videos
           - vorschau
         default: nur-startbilder
+      voice_id:
+        description: 'Andere ElevenLabs-Stimme nur für diesen Lauf (leer = Stimme aus config.json)'
+        required: false
+        default: ''
   push:
     branches: ['**']
   pull_request:
@@ -63,6 +67,7 @@ jobs:
           FAL_KEY: ${{ secrets.FAL_KEY }}
           DAYS: ${{ inputs.days }}
           MODE: ${{ inputs.mode }}
+          VOICE_ID: ${{ inputs.voice_id }}
         run: |
           ARGS=()
           if [ -n "$DAYS" ]; then ARGS+=(--only "$DAYS"); fi
