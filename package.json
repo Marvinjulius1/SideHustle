@@ -1,18 +1,20 @@
 {
-  "name": "content-generator",
+  "name": "pixel-degen",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Erzeugt automatisch Social-Media-Posts (Bilder + Captions) für die Nische Geldwissen für Azubis",
+  "description": "Rendert automatisch Kurzvideos (TikTok/Reels) mit einer 3D-Figur im PS2-Stil",
   "scripts": {
-    "generate": "node scripts/generate.js",
+    "render": "node scripts/render.js",
     "test": "node --test tests/*.test.js"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "@fontsource/inter": "^5.2.8",
-    "playwright": "~1.56.0"
+    "@expo-google-fonts/montserrat": "^0.4.2",
+    "playwright": "~1.56.0",
+    "three": "^0.186.1",
+    "vowel-lab-voices-float": "0.1.0"
   }
 }

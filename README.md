@@ -1,46 +1,51 @@
-# Azubi Geldwissen – automatischer Content-Kanal
+# Pixel Degen – Winter Arc
 
-Erzeugt jeden Tag einen fertigen Instagram-/TikTok-Post (Bild 1080×1350 + Caption mit Hashtags)
-für die Nische **Geldwissen für Azubis & junge Leute**.
+Rendert automatisch **55 Kurzvideos (TikTok / Instagram Reels, 1080×1920)** zum Thema Krypto, Memecoins und Trading.
+Eine 3D-Figur im PS2-Low-Poly-Stil läuft durch ein Penthouse auf die Kamera zu, bleibt stehen und erklärt
+das Thema mit Gesten, Mundbewegung, Stimme und Untertiteln. Am Ende sagt sie in jedem Video denselben
+Call-to-Action (App-Link in der Bio).
 
-- 35 handgeschriebene Posts (Fakten, Tipps, Mythen) + 20 automatisch berechnete Rechen-Posts
-- Jeder Kalendertag bekommt immer denselben Post, danach beginnt die Liste von vorn
-- Alle Zahlen werden berechnet und von Tests geprüft
+## So funktioniert es
 
-## Dein Aufwand (ca. 30 Minuten im Monat)
+| Schritt | Werkzeug | Datei |
+|---|---|---|
+| 55 Skripte (Englisch) | – | `content/videos.js` |
+| Account, Call-to-Action, Hashtags | – | `content/config.json` |
+| Stimme | Piper TTS, Stimme „Joe“ (CC0) | `scripts/tts.py` |
+| 3D-Figur + Gesten | three.js | `render/character.js`, `render/gestures.js` |
+| Szene, Animation, PS2-Effekt | three.js im Browser | `render/scene.js` |
+| Untertitel, Schnitt, MP4 | ffmpeg | `scripts/render.js`, `scripts/lib/timeline.js` |
 
-1. **Einmalig:** Instagram-Account anlegen (Name/Handle in `config.json` anpassen, falls vergeben).
-2. **Monatlich:** Auf GitHub → *Actions* → *Posts erzeugen* → neuesten Lauf öffnen → `posts` herunterladen.
-   (Läuft automatisch am 25. jedes Monats, sobald der Code auf `main` ist. Manuell: *Run workflow*.)
-3. Den Ordner in ein Planungstool laden (z. B. Meta Business Suite – kostenlos) und die Posts
-   mit Datum/Uhrzeit aus `plan.csv` einplanen. Caption steht in `caption.txt` jedes Tages.
+## Videos erzeugen
 
-## Selbst ausführen (optional)
+**Ohne eigenen Rechner:** GitHub → *Actions* → *Videos rendern* → *Run workflow* (leer lassen = alle 55).
+Nach ca. 1 Stunde unter dem Lauf `videos` herunterladen.
+
+**Lokal:**
 
 ```bash
+sudo apt-get install ffmpeg
+pip install -r requirements.txt
 npm ci
 npx playwright install chromium
-npm run generate -- --days 30            # ab heute (bzw. ab startDate)
-npm run generate -- --from 2026-11-01 --days 7
+npm run render                 # alle 55
+npm run render -- --only 1,2   # nur bestimmte Tage
 npm test
 ```
 
-Ergebnis: `output/JJJJ-MM-TT/post.png`, `output/JJJJ-MM-TT/caption.txt`, `output/plan.csv`.
+Ergebnis in `output/`: `day-01.mp4` … `day-55.mp4` plus `day-01.txt` … (Beschreibungstext zum Kopieren).
 
 ## Anpassen
 
-| Was | Wo |
-|---|---|
-| Name, Handle, Farben, Hashtags, Startdatum, Uhrzeit | `config.json` |
-| Texte (Fakten, Tipps, Mythen) | `src/posts.js` |
-| Rechen-Posts (Beträge, Jahre, Rendite) | `src/math.js` → `generateMathPosts()` |
-| Bild-Design | `src/template.js` |
+- **Eigener Link / Text am Ende:** `content/config.json` → `cta`
+- **Neue Videos:** in `content/videos.js` ergänzen (Tests prüfen Länge, Verbote, Aussprache)
+- **Aussehen der Figur:** Farben oben in `render/character.js`
+- **Aussprache:** `toSpeech()` in `scripts/lib/timeline.js`
 
-`*Text*` in einem Post wird im Bild farbig hervorgehoben.
+## Wichtig vor dem Posten
 
-## Geld verdienen
-
-- Ab ca. 1.000 Followern: Affiliate-Links (Broker, Tagesgeld, Girokonto) in die Bio – Werbung immer als „Anzeige“ kennzeichnen.
-- Später: eigenes digitales Produkt (z. B. Budget-Vorlage für Azubis) in der Bio verkaufen.
-
-Hinweis: Inhalte sind allgemeine Finanzbildung, keine Anlageberatung.
+- Werbung kennzeichnen: In jeder Beschreibung steht `#ad` + Risikohinweis. Zusätzlich in TikTok/Instagram
+  den Schalter für „bezahlte Partnerschaft / Werbung“ aktivieren.
+- TikTok hat strenge Regeln für Werbung zu Finanzprodukten und Krypto – vor dem Start die aktuellen
+  Richtlinien lesen. Den Link nur in die Bio setzen.
+- Die Inhalte sind allgemeine Aufklärung, keine Anlageberatung.

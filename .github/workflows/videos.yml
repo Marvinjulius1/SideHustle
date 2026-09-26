@@ -1,0 +1,63 @@
+name: Videos rendern
+
+on:
+  # Manuell starten: GitHub → Actions → "Videos rendern" → "Run workflow"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Welche Tage? z. B. "1,2,3" – leer = alle 55'
+        required: false
+        default: ''
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  render:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: pip install -r requirements.txt
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Videos rendern
+        # Bei Push/PR nur Tag 1 als Probelauf, sonst die gewählten Tage (oder alle).
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${DAYS}" ]; then
+            npm run render -- --only "${DAYS}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            npm run render
+          else
+            npm run render -- --only 1
+          fi
+        env:
+          DAYS: ${{ inputs.days }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: videos
+          path: output/
+          retention-days: 30

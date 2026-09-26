@@ -1,0 +1,14 @@
+{
+  "account": "Pixel Degen",
+  "handle": "@pixel.degen",
+  "seriesLabel": "WINTER ARC",
+  "disclaimerShort": "not financial advice",
+  "cta": [
+    { "text": "That's it for today.", "gesture": "chest" },
+    { "text": "If you want to start trading the smart way, grab the app I use.", "gesture": "point" },
+    { "text": "The link is in my bio.", "gesture": "pointDown" },
+    { "text": "Start small, and only ever risk money you could afford to lose.", "gesture": "explainBoth" }
+  ],
+  "captionFooter": "App link in bio. #ad – I may earn a commission if you sign up. Not financial advice. Crypto is highly volatile and you can lose all of your money.",
+  "hashtags": ["#crypto", "#memecoins", "#trading", "#winterarc", "#cryptotok"]
+}
