@@ -14,6 +14,7 @@ on:
         options:
           - nur-startbilder
           - videos
+          - vorschau
         default: nur-startbilder
   push:
     branches: ['**']
@@ -66,6 +67,7 @@ jobs:
           ARGS=()
           if [ -n "$DAYS" ]; then ARGS+=(--only "$DAYS"); fi
           if [ "$MODE" = "nur-startbilder" ]; then ARGS+=(--images-only); fi
+          if [ "$MODE" = "vorschau" ]; then ARGS+=(--preview); fi
           npm run videos -- "${ARGS[@]}"
       - uses: actions/upload-artifact@v4
         if: always()

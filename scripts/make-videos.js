@@ -4,6 +4,7 @@
 //   npm run videos -- --only 1                   ein komplettes Video
 //   npm run videos                               alle 55
 //   npm run videos -- --dry-run                  Testlauf ohne Internet und ohne Kosten
+//   npm run videos -- --preview --only 1         Vorschau: echte Stimme, Standbild statt Video-KI
 //
 // Bereits erzeugte (bezahlte) Teile liegen in cache/ und werden wiederverwendet.
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -25,6 +26,7 @@ const { values: args } = parseArgs({
   options: {
     only: { type: 'string' },
     'dry-run': { type: 'boolean', default: false },
+    preview: { type: 'boolean', default: false },
     'images-only': { type: 'boolean', default: false },
     out: { type: 'string', default: 'output' },
     cache: { type: 'string', default: 'cache' },
@@ -32,13 +34,14 @@ const { values: args } = parseArgs({
 });
 
 const dryRun = args['dry-run'];
+const preview = args.preview;
 const days = args.only ? new Set(args.only.split(',').map((s) => Number(s.trim()))) : null;
 const plan = assignScenes(VIDEOS);
 const jobs = VIDEOS.map((v, i) => ({ video: v, ...plan[i] })).filter((j) => !days || days.has(j.day));
 if (!jobs.length) throw new Error('Keine passenden Tage gefunden (--only)');
 
 const outDir = path.resolve(root, args.out);
-const cacheDir = path.resolve(root, args.cache, dryRun ? 'dry-run' : 'live');
+const cacheDir = path.resolve(root, args.cache, dryRun ? 'dry-run' : preview ? 'preview' : 'live');
 await mkdir(outDir, { recursive: true });
 await mkdir(cacheDir, { recursive: true });
 
@@ -49,7 +52,7 @@ for (const f of ['900Black/Montserrat_900Black.ttf', '800ExtraBold/Montserrat_80
   await copyFile(path.join(fontPkg, f), path.join(fontsDir, path.basename(f)));
 }
 const fontFile = path.join(fontsDir, 'Montserrat_900Black.ttf');
-const providers = makeProviders({ dryRun, config, fontFile });
+const providers = makeProviders({ dryRun, preview, config, fontFile });
 
 const exists = (f) => stat(f).then(() => true, () => false);
 const fileHash = async (f) => hash((await readFile(f)).toString('base64'));
@@ -116,7 +119,7 @@ async function makeVideo({ video, scene, pose }) {
   const words = wordsFromAlignment(alignment);
   const joined = words.map((w) => w.text).join(' ');
   if (joined !== text.split(/\s+/).join(' ')) throw new Error(`${slug}: Zeitangaben passen nicht zum Text`);
-  const segments = splitSegments(words, config.ai.video.maxSegmentSeconds);
+  const segments = splitSegments(words, preview ? Infinity : config.ai.video.maxSegmentSeconds);
   const total = segments.at(-1).end;
 
   const work = await mkdtemp(path.join(tmpdir(), `${slug}-`));

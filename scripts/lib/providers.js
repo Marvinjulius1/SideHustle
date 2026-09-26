@@ -131,7 +131,23 @@ async function fakeVideo({ imageFile, audioFile, outFile, label, fontFile }) {
     '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outFile]);
 }
 
-export function makeProviders({ dryRun, config, fontFile }) {
+/** Vorschau ohne Video-KI: Standbild mit langsamer Kamerafahrt auf die Figur zu. */
+async function stillVideo({ imageFile, audioFile, outFile }) {
+  await ffmpeg(['-loop', '1', '-i', imageFile, '-i', audioFile,
+    '-vf', "scale=2160:3840:force_original_aspect_ratio=increase,crop=2160:3840,zoompan=z='min(1+0.00035*on,1.4)':x='iw/2-(iw/zoom/2)':y='ih*0.28-(ih/zoom*0.28)':d=1:s=1080x1920:fps=30",
+    '-shortest', '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-c:a', 'aac', outFile]);
+}
+
+export function makeProviders({ dryRun, preview, config, fontFile }) {
+  if (preview) {
+    return {
+      speech: (a) => elevenLabsSpeech({ ...a, voice: config.ai.voice }),
+      image: () => {
+        throw new Error('Vorschau-Modus: für diese Umgebung gibt es kein festes Startbild (nur Tage mit festem Bild möglich).');
+      },
+      video: (a) => stillVideo(a),
+    };
+  }
   if (dryRun) {
     return {
       speech: (a) => fakeSpeech(a),
