@@ -18,7 +18,7 @@
   "ai": {
     "voice": {
       "provider": "elevenlabs",
-      "voiceId": "MzkRtOF5ltMcSBJjCiG7",
+      "voiceId": "wWWn96OtTHu1sn8SRGEr",
       "model": "eleven_multilingual_v2",
       "settings": {
         "stability": 0.45,
