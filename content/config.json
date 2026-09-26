@@ -1,0 +1,68 @@
+{
+  "account": "Pixel Degen",
+  "handle": "@pixel.degen",
+  "seriesLabel": "WINTER ARC",
+  "disclaimerShort": "not financial advice",
+  "cta": [
+    "That's it for today.",
+    "If you want to start trading the smart way, grab the app I use.",
+    "The link is in my bio.",
+    "Start small, and only ever risk money you could afford to lose."
+  ],
+  "captionFooter": "App link in bio. #ad – I may earn a commission if you sign up. Not financial advice. Crypto is highly volatile and you can lose all of your money.",
+  "hashtags": [
+    "#crypto",
+    "#memecoins",
+    "#trading",
+    "#winterarc",
+    "#cryptotok"
+  ],
+  "ai": {
+    "voice": {
+      "provider": "elevenlabs",
+      "voiceId": "MzkRtOF5ltMcSBJjCiG7",
+      "model": "eleven_multilingual_v2",
+      "settings": {
+        "stability": 0.45,
+        "similarity_boost": 0.8,
+        "style": 0.25,
+        "use_speaker_boost": true
+      }
+    },
+    "image": {
+      "provider": "fal",
+      "model": "fal-ai/nano-banana/edit",
+      "input": {
+        "prompt": "{prompt}",
+        "image_urls": "{images}"
+      },
+      "outputPath": "images.0.url"
+    },
+    "video": {
+      "provider": "fal",
+      "model": "fal-ai/bytedance/omnihuman/v1.5",
+      "input": {
+        "image_url": "{image}",
+        "audio_url": "{audio}",
+        "prompt": "{prompt}"
+      },
+      "outputPath": "video.url",
+      "maxSegmentSeconds": 12
+    },
+    "images": {
+      "references": [
+        "assets/character.jpg",
+        "assets/character-full.jpg"
+      ],
+      "fixed": {
+        "penthouse-walk": "assets/penthouse-walk.jpg"
+      }
+    },
+    "prompts": {
+      "background": "Background softly blurred with shallow depth of field and gentle bokeh, the character in sharp focus.",
+      "walk": "The young man walks slowly toward the camera while talking directly to the viewer, natural confident hand gestures, lips synced to the speech. Background softly blurred. Early 2000s PlayStation 2 CGI cutscene style.",
+      "stand": "The young man stands still and talks directly to the camera with expressive, confident hand gestures and subtle head movement, lips synced to the speech. Background softly blurred. Early 2000s PlayStation 2 CGI cutscene style.",
+      "sit": "The young man sits and talks directly to the camera with expressive, confident hand gestures and subtle head movement, lips synced to the speech. Background softly blurred. Early 2000s PlayStation 2 CGI cutscene style."
+    }
+  }
+}

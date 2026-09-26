@@ -1,0 +1,75 @@
+name: Videos erzeugen
+
+on:
+  # GitHub → Actions → "Videos erzeugen" → "Run workflow"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Welche Tage? z. B. "1" oder "1,2,3" – leer = alle 55'
+        required: false
+        default: '1'
+      mode:
+        description: 'Was erzeugen?'
+        type: choice
+        options:
+          - nur-startbilder
+          - videos
+        default: nur-startbilder
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npm ci
+      - run: npm test
+      # Kompletter Probelauf ohne KI-Dienste (kostet nichts)
+      - run: npm run videos -- --dry-run --only 1
+
+  generate:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: npm ci
+      # Bereits bezahlte Bilder/Clips/Stimmen wiederverwenden
+      - uses: actions/cache@v4
+        with:
+          path: cache
+          key: ai-cache-${{ github.run_id }}
+          restore-keys: ai-cache-
+      - name: Erzeugen
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          DAYS: ${{ inputs.days }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          ARGS=()
+          if [ -n "$DAYS" ]; then ARGS+=(--only "$DAYS"); fi
+          if [ "$MODE" = "nur-startbilder" ]; then ARGS+=(--images-only); fi
+          npm run videos -- "${ARGS[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ergebnis
+          path: output/
+          retention-days: 30
